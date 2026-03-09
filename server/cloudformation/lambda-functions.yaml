@@ -1,0 +1,228 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lambda functions and IAM roles for Internet Knowledge Map
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+  
+  LambdaCodeBucket:
+    Type: String
+    Description: S3 bucket containing Lambda deployment packages
+  
+  LambdaCodeKey:
+    Type: String
+    Description: S3 key for Lambda deployment package (e.g., lambda-functions.zip)
+  
+  DynamoDBStackName:
+    Type: String
+    Description: Name of the CloudFormation stack containing DynamoDB tables
+
+Resources:
+  # IAM Role for Lambda execution
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub knowledge-map-lambda-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                Resource:
+                  - Fn::ImportValue: !Sub ${DynamoDBStackName}-NodesTableArn
+                  - Fn::ImportValue: !Sub ${DynamoDBStackName}-EdgesTableArn
+                  - Fn::ImportValue: !Sub ${DynamoDBStackName}-CacheTableArn
+                  - !Sub
+                    - ${TableArn}/index/*
+                    - TableArn:
+                        Fn::ImportValue: !Sub ${DynamoDBStackName}-NodesTableArn
+                  - !Sub
+                    - ${TableArn}/index/*
+                    - TableArn:
+                        Fn::ImportValue: !Sub ${DynamoDBStackName}-EdgesTableArn
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/knowledge-map-*
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: knowledge-map
+
+  # Lambda Layer for dependencies (optional - can also bundle with function)
+  DependenciesLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub knowledge-map-dependencies-${Environment}
+      Description: Shared dependencies for Knowledge Map Lambda functions
+      Content:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub ${Environment}/layers/dependencies.zip
+      CompatibleRuntimes:
+        - nodejs18.x
+        - nodejs20.x
+
+  # Generate Map Lambda Function
+  GenerateMapFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub knowledge-map-generate-${Environment}
+      Runtime: nodejs18.x
+      Handler: handlers/generateMap.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Ref LambdaCodeKey
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          AWS_REGION: !Ref AWS::Region
+          DYNAMODB_NODES_TABLE:
+            Fn::ImportValue: !Sub ${DynamoDBStackName}-NodesTable
+          DYNAMODB_EDGES_TABLE:
+            Fn::ImportValue: !Sub ${DynamoDBStackName}-EdgesTable
+          DYNAMODB_CACHE_TABLE:
+            Fn::ImportValue: !Sub ${DynamoDBStackName}-CacheTable
+          MAX_SEARCH_RESULTS: '15'
+          MAX_CONCURRENT_SCRAPES: '5'
+          MAX_ENTITIES: '50'
+          CACHE_TTL_HOURS: '24'
+          PIPELINE_TIMEOUT_SECONDS: '25'
+          LOG_LEVEL: info
+      Layers:
+        - !Ref DependenciesLayer
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: knowledge-map
+        - Key: Function
+          Value: generate-map
+
+  # Get Graph Lambda Function
+  GetGraphFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub knowledge-map-get-graph-${Environment}
+      Runtime: nodejs18.x
+      Handler: handlers/getGraph.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Ref LambdaCodeKey
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          AWS_REGION: !Ref AWS::Region
+          DYNAMODB_NODES_TABLE:
+            Fn::ImportValue: !Sub ${DynamoDBStackName}-NodesTable
+          DYNAMODB_EDGES_TABLE:
+            Fn::ImportValue: !Sub ${DynamoDBStackName}-EdgesTable
+          DYNAMODB_CACHE_TABLE:
+            Fn::ImportValue: !Sub ${DynamoDBStackName}-CacheTable
+          LOG_LEVEL: info
+      Layers:
+        - !Ref DependenciesLayer
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: knowledge-map
+        - Key: Function
+          Value: get-graph
+
+  # CloudWatch Log Groups
+  GenerateMapLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GenerateMapFunction}
+      RetentionInDays: 7
+
+  GetGraphLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GetGraphFunction}
+      RetentionInDays: 7
+
+  # Lambda Permissions for API Gateway (will be added by API Gateway stack)
+  GenerateMapInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GenerateMapFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/*
+
+  GetGraphInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GetGraphFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/*
+
+Outputs:
+  GenerateMapFunctionArn:
+    Description: ARN of the Generate Map Lambda function
+    Value: !GetAtt GenerateMapFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-GenerateMapFunctionArn
+  
+  GenerateMapFunctionName:
+    Description: Name of the Generate Map Lambda function
+    Value: !Ref GenerateMapFunction
+    Export:
+      Name: !Sub ${AWS::StackName}-GenerateMapFunctionName
+
+  GetGraphFunctionArn:
+    Description: ARN of the Get Graph Lambda function
+    Value: !GetAtt GetGraphFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-GetGraphFunctionArn
+  
+  GetGraphFunctionName:
+    Description: Name of the Get Graph Lambda function
+    Value: !Ref GetGraphFunction
+    Export:
+      Name: !Sub ${AWS::StackName}-GetGraphFunctionName
+
+  LambdaExecutionRoleArn:
+    Description: ARN of the Lambda execution role
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-LambdaExecutionRoleArn

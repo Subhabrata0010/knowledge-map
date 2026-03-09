@@ -1,0 +1,321 @@
+service: knowledge-map
+
+frameworkVersion: '3'
+
+useDotenv: true
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  memorySize: 512
+  timeout: 120
+  
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    AWS_REGION: ${env:AWS_REGION, 'us-east-1'}
+    AWS_ACCESS_KEY_ID: ${env:AWS_ACCESS_KEY_ID, ''}
+    AWS_SECRET_ACCESS_KEY: ${env:AWS_SECRET_ACCESS_KEY, ''}
+    DYNAMODB_ENDPOINT: ${env:DYNAMODB_ENDPOINT, ''}
+    DYNAMODB_NODES_TABLE: ${env:DYNAMODB_NODES_TABLE, '${self:service}-nodes-${self:provider.stage}'}
+    DYNAMODB_EDGES_TABLE: ${env:DYNAMODB_EDGES_TABLE, '${self:service}-edges-${self:provider.stage}'}
+    DYNAMODB_CACHE_TABLE: ${env:DYNAMODB_CACHE_TABLE, '${self:service}-cache-${self:provider.stage}'}
+    DYNAMODB_RATE_LIMIT_TABLE: ${env:DYNAMODB_RATE_LIMIT_TABLE, '${self:service}-rate-limits-${self:provider.stage}'}
+    MAX_SEARCH_RESULTS: ${env:MAX_SEARCH_RESULTS, '15'}
+    MAX_CONCURRENT_SCRAPES: ${env:MAX_CONCURRENT_SCRAPES, '5'}
+    MAX_ENTITIES: ${env:MAX_ENTITIES, '50'}
+    CACHE_TTL_HOURS: ${env:CACHE_TTL_HOURS, '24'}
+    PIPELINE_TIMEOUT_SECONDS: ${env:PIPELINE_TIMEOUT_SECONDS, '25'}
+    LOG_LEVEL: ${env:LOG_LEVEL, 'info'}
+  
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:BatchWriteItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_NODES_TABLE}
+            - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_NODES_TABLE}/index/*
+            - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_EDGES_TABLE}
+            - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_EDGES_TABLE}/index/*
+            - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_CACHE_TABLE}
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource:
+            - arn:aws:logs:${self:provider.region}:*:log-group:/aws/lambda/*
+
+  apiGateway:
+    restApiId: !Ref KnowledgeMapApi
+    restApiRootResourceId: !GetAtt KnowledgeMapApi.RootResourceId
+
+functions:
+  generateMap:
+    handler: src/handlers/generateMap.handler
+    name: ${self:service}-generate-${self:provider.stage}
+    description: Generate knowledge graph from topic query
+    timeout: 120
+    memorySize: 512
+    events:
+      - http:
+          path: generate-map
+          method: post
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+          request:
+            schemas:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - topic
+                  properties:
+                    topic:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+    tags:
+      Function: generate-map
+      Application: knowledge-map
+
+  getGraph:
+    handler: src/handlers/getGraph.handler
+    name: ${self:service}-get-graph-${self:provider.stage}
+    description: Retrieve existing knowledge graph
+    timeout: 10
+    memorySize: 256
+    events:
+      - http:
+          path: graph/{topic}
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+          request:
+            parameters:
+              paths:
+                topic: true
+    tags:
+      Function: get-graph
+      Application: knowledge-map
+
+resources:
+  Resources:
+    # DynamoDB Tables
+    NodesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_NODES_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+          - AttributeName: nodeType
+            AttributeType: S
+          - AttributeName: importance
+            AttributeType: N
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: NodeTypeIndex
+            KeySchema:
+              - AttributeName: pk
+                KeyType: HASH
+              - AttributeName: nodeType
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: ImportanceIndex
+            KeySchema:
+              - AttributeName: pk
+                KeyType: HASH
+              - AttributeName: importance
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        SSESpecification:
+          SSEEnabled: true
+        Tags:
+          - Key: Environment
+            Value: ${self:provider.stage}
+          - Key: Application
+            Value: ${self:service}
+
+    EdgesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_EDGES_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+          - AttributeName: relationType
+            AttributeType: S
+          - AttributeName: weight
+            AttributeType: N
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: RelationTypeIndex
+            KeySchema:
+              - AttributeName: pk
+                KeyType: HASH
+              - AttributeName: relationType
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: WeightIndex
+            KeySchema:
+              - AttributeName: pk
+                KeyType: HASH
+              - AttributeName: weight
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        SSESpecification:
+          SSEEnabled: true
+        Tags:
+          - Key: Environment
+            Value: ${self:provider.stage}
+          - Key: Application
+            Value: ${self:service}
+
+    CacheTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_CACHE_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        SSESpecification:
+          SSEEnabled: true
+        Tags:
+          - Key: Environment
+            Value: ${self:provider.stage}
+          - Key: Application
+            Value: ${self:service}
+
+  Outputs:
+    ApiGatewayUrl:
+      Description: URL of the API Gateway
+      Value:
+        Fn::Sub: https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${self:provider.stage}
+    
+    GenerateMapFunctionName:
+      Description: Name of Generate Map function
+      Value: !Ref GenerateMapLambdaFunction
+    
+    GetGraphFunctionName:
+      Description: Name of Get Graph function
+      Value: !Ref GetGraphLambdaFunction
+    
+    NodesTableName:
+      Description: Name of Nodes table
+      Value: !Ref NodesTable
+    
+    EdgesTableName:
+      Description: Name of Edges table
+      Value: !Ref EdgesTable
+    
+    CacheTableName:
+      Description: Name of Cache table
+      Value: !Ref CacheTable
+
+plugins:
+  - serverless-esbuild
+  - serverless-offline
+
+custom:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: true
+    exclude:
+      - '@aws-sdk/*'
+    target: 'node18'
+    define:
+      'require.resolve': undefined
+    platform: 'node'
+    concurrency: 10
+  
+  serverless-offline:
+    httpPort: 3001
+    noPrependStageInUrl: true
+    lambdaPort: 3002
+    websocketPort: 3003
+    requestTimeoutSeconds: 180
+  
+  # Exclude unnecessary files from deployment package
+  package:
+    individually: true
+    exclude:
+      - node_modules/**
+      - .git/**
+      - .gitignore
+      - .env*
+      - README.md
+      - cloudformation/**
+      - scripts/**
+      - test/**
+      - '*.test.ts'
+      - '*.spec.ts'
+
+package:
+  patterns:
+    - '!node_modules/**'
+    - 'node_modules/compromise/**'
+    - 'node_modules/cheerio/**'
+    - 'node_modules/@mozilla/readability/**'
+    - 'node_modules/jsdom/**'
+    - 'node_modules/axios/**'
+    - 'node_modules/@aws-sdk/**'

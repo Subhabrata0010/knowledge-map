@@ -1,0 +1,331 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: API Gateway REST API for Internet Knowledge Map
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+  
+  LambdaStackName:
+    Type: String
+    Description: Name of the CloudFormation stack containing Lambda functions
+  
+  ApiKeysRequired:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Whether API keys are required for requests
+
+Resources:
+  # REST API
+  KnowledgeMapApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub knowledge-map-api-${Environment}
+      Description: REST API for Internet Knowledge Map
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: knowledge-map
+
+  # API Resources
+  GenerateMapResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref KnowledgeMapApi
+      ParentId: !GetAtt KnowledgeMapApi.RootResourceId
+      PathPart: generate-map
+
+  GraphResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref KnowledgeMapApi
+      ParentId: !GetAtt KnowledgeMapApi.RootResourceId
+      PathPart: graph
+
+  GraphTopicResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref KnowledgeMapApi
+      ParentId: !Ref GraphResource
+      PathPart: '{topic}'
+
+  # POST /generate-map Method
+  GenerateMapMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref KnowledgeMapApi
+      ResourceId: !Ref GenerateMapResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      ApiKeyRequired: !Ref ApiKeysRequired
+      RequestValidatorId: !Ref RequestValidator
+      RequestModels:
+        application/json: !Ref GenerateMapRequestModel
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
+          - FunctionArn:
+              Fn::ImportValue: !Sub ${LambdaStackName}-GenerateMapFunctionArn
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: !Ref GenerateMapResponseModel
+        - StatusCode: 400
+        - StatusCode: 500
+
+  # OPTIONS /generate-map (CORS)
+  GenerateMapOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref KnowledgeMapApi
+      ResourceId: !Ref GenerateMapResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # GET /graph/{topic} Method
+  GetGraphMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref KnowledgeMapApi
+      ResourceId: !Ref GraphTopicResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      ApiKeyRequired: !Ref ApiKeysRequired
+      RequestParameters:
+        method.request.path.topic: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
+          - FunctionArn:
+              Fn::ImportValue: !Sub ${LambdaStackName}-GetGraphFunctionArn
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: !Ref GetGraphResponseModel
+        - StatusCode: 404
+        - StatusCode: 500
+
+  # OPTIONS /graph/{topic} (CORS)
+  GetGraphOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref KnowledgeMapApi
+      ResourceId: !Ref GraphTopicResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Request/Response Models
+  GenerateMapRequestModel:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref KnowledgeMapApi
+      ContentType: application/json
+      Name: GenerateMapRequest
+      Schema:
+        $schema: 'http://json-schema.org/draft-04/schema#'
+        type: object
+        required:
+          - topic
+        properties:
+          topic:
+            type: string
+            minLength: 1
+            maxLength: 200
+
+  GenerateMapResponseModel:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref KnowledgeMapApi
+      ContentType: application/json
+      Name: GenerateMapResponse
+      Schema:
+        $schema: 'http://json-schema.org/draft-04/schema#'
+        type: object
+        properties:
+          graph:
+            type: object
+          cached:
+            type: boolean
+
+  GetGraphResponseModel:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref KnowledgeMapApi
+      ContentType: application/json
+      Name: GetGraphResponse
+      Schema:
+        $schema: 'http://json-schema.org/draft-04/schema#'
+        type: object
+        properties:
+          graph:
+            type: object
+
+  # Request Validator
+  RequestValidator:
+    Type: AWS::ApiGateway::RequestValidator
+    Properties:
+      RestApiId: !Ref KnowledgeMapApi
+      Name: RequestBodyValidator
+      ValidateRequestBody: true
+      ValidateRequestParameters: true
+
+  # API Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - GenerateMapMethod
+      - GenerateMapOptionsMethod
+      - GetGraphMethod
+      - GetGraphOptionsMethod
+    Properties:
+      RestApiId: !Ref KnowledgeMapApi
+      Description: !Sub Deployment for ${Environment} environment
+
+  # API Stage
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref KnowledgeMapApi
+      DeploymentId: !Ref ApiDeployment
+      StageName: !Ref Environment
+      Description: !Sub ${Environment} stage
+      TracingEnabled: true
+      MethodSettings:
+        - ResourcePath: /*
+          HttpMethod: '*'
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+          ThrottlingBurstLimit: 100
+          ThrottlingRateLimit: 50
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: knowledge-map
+
+  # Usage Plan (optional, for API key management)
+  ApiUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Condition: NeedsApiKeys
+    Properties:
+      UsagePlanName: !Sub knowledge-map-usage-plan-${Environment}
+      Description: Usage plan for Knowledge Map API
+      ApiStages:
+        - ApiId: !Ref KnowledgeMapApi
+          Stage: !Ref ApiStage
+      Quota:
+        Limit: 10000
+        Period: MONTH
+      Throttle:
+        BurstLimit: 100
+        RateLimit: 50
+
+  # API Key (optional)
+  ApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Condition: NeedsApiKeys
+    Properties:
+      Name: !Sub knowledge-map-api-key-${Environment}
+      Description: API key for Knowledge Map
+      Enabled: true
+
+  # Usage Plan Key (connects API Key to Usage Plan)
+  UsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Condition: NeedsApiKeys
+    Properties:
+      KeyId: !Ref ApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref ApiUsagePlan
+
+Conditions:
+  NeedsApiKeys: !Equals [!Ref ApiKeysRequired, 'true']
+
+Outputs:
+  ApiUrl:
+    Description: Base URL of the API Gateway
+    Value: !Sub https://${KnowledgeMapApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+    Export:
+      Name: !Sub ${AWS::StackName}-ApiUrl
+  
+  ApiId:
+    Description: ID of the API Gateway
+    Value: !Ref KnowledgeMapApi
+    Export:
+      Name: !Sub ${AWS::StackName}-ApiId
+  
+  ApiStage:
+    Description: API Gateway stage name
+    Value: !Ref ApiStage
+    Export:
+      Name: !Sub ${AWS::StackName}-ApiStage
+
+  ApiKeyValue:
+    Condition: NeedsApiKeys
+    Description: API Key (store this securely)
+    Value: !Sub '{{resolve:secretsmanager:${ApiKey}:SecretString}}'

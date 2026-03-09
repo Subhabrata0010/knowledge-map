@@ -1,0 +1,57 @@
+{
+  "name": "knowledge-map-server",
+  "version": "1.0.0",
+  "description": "Backend services for Internet Knowledge Map",
+  "main": "dist/index.js",
+  "scripts": {
+    "clean": "node -e \"const fs=require('fs');['dist','.build','.serverless'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true})}catch(e){}});console.log('Cleaned')\"",
+    "build": "npm run clean && tsc",
+    "build:watch": "tsc --watch",
+    "dev": "serverless offline --stage dev",
+    "test": "jest",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "deploy": "serverless deploy --verbose",
+    "deploy:dev": "serverless deploy --stage dev",
+    "deploy:prod": "serverless deploy --stage prod",
+    "deploy:script": "./scripts/deploy.sh",
+    "remove": "serverless remove",
+    "logs": "serverless logs -f generateMap --tail",
+    "invoke:generate": "serverless invoke local -f generateMap --data '{\"body\":\"{\\\"topic\\\":\\\"AI Agents\\\"}\"}'",
+    "invoke:get": "serverless invoke local -f getGraph --data '{\"pathParameters\":{\"topic\":\"ai-agents\"}}'",
+    "create-tables-local": "ts-node scripts/create-local-tables.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.490.0",
+    "@aws-sdk/client-s3": "^3.490.0",
+    "@aws-sdk/lib-dynamodb": "^3.490.0",
+    "@mozilla/readability": "^0.4.4",
+    "axios": "^1.6.5",
+    "cheerio": "^1.0.0-rc.12",
+    "compromise": "^14.11.0",
+    "dotenv": "^17.3.1",
+    "jsdom": "^23.2.0",
+    "tsconfig-paths": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.133",
+    "@types/jsdom": "^21.1.6",
+    "@types/node": "^20.11.5",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "esbuild": "^0.27.3",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "serverless": "^3.38.0",
+    "serverless-esbuild": "^1.57.0",
+    "serverless-offline": "^13.3.3",
+    "serverless-plugin-typescript": "^2.1.5",
+    "ts-jest": "^29.1.1",
+    "ts-node": "^10.9.2",
+    "tsc-alias": "^1.8.16",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

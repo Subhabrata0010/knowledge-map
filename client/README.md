@@ -1,13 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Knowledge Map - Frontend Client
 
-## Getting Started
+Next.js frontend for the Internet Knowledge Map system with interactive graph visualization.
 
-First, run the development server:
+## 🚀 Features
+
+- **Modern UI**: Clean, responsive interface built with Next.js 16 and TailwindCSS 4
+- **Interactive Graphs**: React Flow-powered visualization with zoom, pan, and drag
+- **Real-Time Search**: Instant feedback with loading states and error handling
+- **Smart Caching**: Client-side localStorage caching (1 hour TTL)
+- **Type-Safe**: Full TypeScript coverage for robust development
+- **Performance**: Optimized with Next.js App Router and React 19
+- **Accessibility**: Keyboard navigation and screen reader support
+
+## 📁 Project Structure
+
+```
+client/
+├── app/                    # Next.js App Router
+│   ├── page.tsx           # Home page with search
+│   ├── layout.tsx         # Root layout
+│   ├── globals.css        # Global styles
+│   └── graph/
+│       └── [topic]/
+│           └── page.tsx   # Graph visualization page
+│
+├── components/            # React components
+│   ├── ui/               # Reusable UI primitives
+│   ├── search/           # Search components
+│   ├── graph/            # Graph visualization
+│   ├── panels/           # Info panels
+│   └── layout/           # Header/Footer
+│
+├── hooks/                # Custom React hooks
+├── lib/                  # Utility libraries
+├── services/            # Backend integration
+├── types/               # TypeScript types
+├── constants/           # Configuration
+└── public/              # Static assets
+```
+
+## 🛠️ Tech Stack
+
+- **Framework**: Next.js 16 (App Router)
+- **React**: React 19
+- **Language**: TypeScript 5
+- **Styling**: TailwindCSS 4
+- **Graph Viz**: React Flow
+- **HTTP Client**: Axios
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+
+### Installation
+
+```bash
+npm install
+```
+
+### Configuration
+
+Create `.env.local` file:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:3001
+```
+
+### Development
 
 ```bash
 npm run dev
-# or
-yarn dev
+# Open http://localhost:3000
+```
+
+### Build
+
+```bash
+npm run build
+npm start
+```
+
+## 📚 Documentation
+
+See the full documentation in this README for:
+- Component API
+- Custom hooks usage
+- Deployment options
+- Performance optimization
+- And more!
+
+For backend documentation, see [../server/README.md](../server/README.md).
 # or
 pnpm dev
 # or

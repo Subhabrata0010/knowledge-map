@@ -1,0 +1,191 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: DynamoDB tables for Internet Knowledge Map
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+  
+  BillingMode:
+    Type: String
+    Default: PAY_PER_REQUEST
+    AllowedValues:
+      - PAY_PER_REQUEST
+      - PROVISIONED
+    Description: DynamoDB billing mode
+
+Resources:
+  # Nodes Table - stores all graph nodes (entities)
+  NodesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub knowledge-map-nodes-${Environment}
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: nodeType
+          AttributeType: S
+        - AttributeName: importance
+          AttributeType: N
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # GSI for querying nodes by type and importance
+        - IndexName: NodeTypeIndex
+          KeySchema:
+            - AttributeName: pk
+              KeyType: HASH
+            - AttributeName: nodeType
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        # GSI for querying top importance nodes
+        - IndexName: ImportanceIndex
+          KeySchema:
+            - AttributeName: pk
+              KeyType: HASH
+            - AttributeName: importance
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: knowledge-map
+        - Key: Layer
+          Value: data
+
+  # Edges Table - stores relationships between nodes
+  EdgesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub knowledge-map-edges-${Environment}
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: relationType
+          AttributeType: S
+        - AttributeName: weight
+          AttributeType: N
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # GSI for querying edges by relationship type
+        - IndexName: RelationTypeIndex
+          KeySchema:
+            - AttributeName: pk
+              KeyType: HASH
+            - AttributeName: relationType
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        # GSI for querying strongest relationships
+        - IndexName: WeightIndex
+          KeySchema:
+            - AttributeName: pk
+              KeyType: HASH
+            - AttributeName: weight
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: knowledge-map
+        - Key: Layer
+          Value: data
+
+  # Cache Table - stores cached graph results with TTL
+  CacheTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub knowledge-map-cache-${Environment}
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: knowledge-map
+        - Key: Layer
+          Value: cache
+
+Outputs:
+  NodesTableName:
+    Description: Name of the Nodes table
+    Value: !Ref NodesTable
+    Export:
+      Name: !Sub ${AWS::StackName}-NodesTable
+  
+  NodesTableArn:
+    Description: ARN of the Nodes table
+    Value: !GetAtt NodesTable.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-NodesTableArn
+
+  EdgesTableName:
+    Description: Name of the Edges table
+    Value: !Ref EdgesTable
+    Export:
+      Name: !Sub ${AWS::StackName}-EdgesTable
+  
+  EdgesTableArn:
+    Description: ARN of the Edges table
+    Value: !GetAtt EdgesTable.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-EdgesTableArn
+
+  CacheTableName:
+    Description: Name of the Cache table
+    Value: !Ref CacheTable
+    Export:
+      Name: !Sub ${AWS::StackName}-CacheTable
+  
+  CacheTableArn:
+    Description: ARN of the Cache table
+    Value: !GetAtt CacheTable.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CacheTableArn
