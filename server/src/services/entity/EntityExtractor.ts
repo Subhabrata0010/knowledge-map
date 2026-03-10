@@ -45,11 +45,23 @@ export class EntityExtractor {
 
     logger.info(`Kept top ${topScored.length} entities`);
 
-    // Convert back to entities
-    const topEntities = topScored
-      .map((score) => entityMap.get(score.entity))
-      .filter((e): e is Entity => e !== undefined);
+    // Return entities directly - get from scored results
+    const topEntities: Entity[] = topScored
+      .map(scored => {
+        const entityId = Normalizer.generateId(Normalizer.normalizeEntity(scored.entity));
+        return entityMap.get(entityId);
+      })
+      .filter((entity): entity is Entity => entity !== undefined);
 
+    if (topEntities.length === 0) {
+      logger.error('Entity matching failed!', {
+        topScoredCount: topScored.length,
+        entityMapSize: entityMap.size,
+        sampleScored: topScored.slice(0, 3).map(s => s.entity)
+      });
+    }
+
+    logger.info(`Returning ${topEntities.length} entities to orchestrator`);
     return topEntities;
   }
 

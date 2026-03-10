@@ -19,7 +19,10 @@
     "logs": "serverless logs -f generateMap --tail",
     "invoke:generate": "serverless invoke local -f generateMap --data '{\"body\":\"{\\\"topic\\\":\\\"AI Agents\\\"}\"}'",
     "invoke:get": "serverless invoke local -f getGraph --data '{\"pathParameters\":{\"topic\":\"ai-agents\"}}'",
-    "create-tables-local": "ts-node scripts/create-local-tables.ts"
+    "create-tables-local": "ts-node scripts/create-local-tables.ts",
+    "prescrape": "node scripts/prescrape.js",
+    "prescrape:watch": "nodemon --watch src --exec npm run prescrape",
+    "scheduler": "node scripts/scheduler.js"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.490.0",
@@ -40,6 +43,7 @@
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
     "esbuild": "^0.27.3",
+    "esbuild-register": "^3.6.0",
     "eslint": "^8.56.0",
     "jest": "^29.7.0",
     "serverless": "^3.38.0",

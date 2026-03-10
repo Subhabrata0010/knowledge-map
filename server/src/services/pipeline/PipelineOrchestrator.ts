@@ -10,6 +10,7 @@ import { EntityExtractor } from '../entity';
 import { RelationshipBuilder } from '../relationship';
 import { GraphBuilder } from '../graph';
 import { nodeRepository, edgeRepository, cacheRepository } from '@/db/repositories';
+import { popularityTracker } from '@/services/tracking/PopularityTracker';
 import { config } from '@/config';
 import { logger } from '@/utils/logger';
 import { Normalizer } from '@/utils/normalizer';
@@ -40,6 +41,11 @@ export class PipelineOrchestrator {
 
     try {
       logger.info(`Starting pipeline for topic: ${topic}`);
+
+      // Track popularity (non-blocking)
+      popularityTracker.trackSearch(topic).catch(err => 
+        logger.debug('Failed to track popularity:', err)
+      );
 
       // Check cache first
       const topicKey = Normalizer.normalizeTopic(topic);

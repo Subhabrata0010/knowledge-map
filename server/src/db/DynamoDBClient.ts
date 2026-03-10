@@ -6,6 +6,8 @@ import {
   GetCommand,
   PutCommand,
   QueryCommand,
+  ScanCommand,
+  UpdateCommand,
   BatchWriteCommand,
   DeleteCommand,
 } from '@aws-sdk/lib-dynamodb';
@@ -98,6 +100,63 @@ export class DynamoDBClient {
       await docClient.send(command);
     } catch (error) {
       logger.error(`DynamoDB delete error in table ${tableName}`, error, { key });
+      throw error;
+    }
+  }
+
+  async update(
+    tableName: string,
+    key: Record<string, any>,
+    updates: Record<string, any>
+  ): Promise<void> {
+    try {
+      const updateExpression = Object.keys(updates)
+        .map((k, i) => `#attr${i} = :val${i}`)
+        .join(', ');
+
+      const expressionAttributeNames = Object.keys(updates).reduce(
+        (acc, k, i) => ({ ...acc, [`#attr${i}`]: k }),
+        {}
+      );
+
+      const expressionAttributeValues = Object.values(updates).reduce(
+        (acc, v, i) => ({ ...acc, [`:val${i}`]: v }),
+        {}
+      );
+
+      const command = new UpdateCommand({
+        TableName: tableName,
+        Key: key,
+        UpdateExpression: `SET ${updateExpression}`,
+        ExpressionAttributeNames: expressionAttributeNames,
+        ExpressionAttributeValues: expressionAttributeValues,
+      });
+
+      await docClient.send(command);
+    } catch (error) {
+      logger.error(`DynamoDB update error in table ${tableName}`, error, { key });
+      throw error;
+    }
+  }
+
+  async scan<T = any>(
+    tableName: string,
+    options?: {
+      FilterExpression?: string;
+      ExpressionAttributeValues?: Record<string, any>;
+      Limit?: number;
+    }
+  ): Promise<T[]> {
+    try {
+      const command = new ScanCommand({
+        TableName: tableName,
+        ...options,
+      });
+
+      const response = await docClient.send(command);
+      return (response.Items as T[]) || [];
+    } catch (error) {
+      logger.error(`DynamoDB scan error in table ${tableName}`, error);
       throw error;
     }
   }

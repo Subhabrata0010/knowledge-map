@@ -64,8 +64,8 @@ functions:
     handler: src/handlers/generateMap.handler
     name: ${self:service}-generate-${self:provider.stage}
     description: Generate knowledge graph from topic query
-    timeout: 120
-    memorySize: 512
+    timeout: 180
+    memorySize: 1024
     events:
       - http:
           path: generate-map
@@ -120,6 +120,48 @@ functions:
                 topic: true
     tags:
       Function: get-graph
+      Application: knowledge-map
+
+  preScrape:
+    handler: src/handlers/preScrape.handler
+    name: ${self:service}-prescrape-${self:provider.stage}
+    description: Pre-scrape top 20 popular topics every 30 minutes
+    timeout: 900  # 15 minutes for batch processing
+    memorySize: 2048
+    events:
+      - schedule:
+          rate: rate(30 minutes)  # Run every 30 minutes
+          enabled: true
+          description: 'Pre-scrape top 20 popular topics'
+    environment:
+      ENABLE_PRE_SCRAPING: ${env:ENABLE_PRE_SCRAPING, 'true'}
+      PRE_SCRAPE_TOPICS: ${env:PRE_SCRAPE_TOPICS, 'javascript,python,react,nodejs,aws'}
+      PRE_SCRAPE_INTERVAL_HOURS: ${env:PRE_SCRAPE_INTERVAL_HOURS, '24'}
+    tags:
+      Function: pre-scrape
+      Application: knowledge-map
+
+  getStats:
+    handler: src/handlers/getStats.handler
+    name: ${self:service}-stats-${self:provider.stage}
+    description: Get popularity and cache statistics
+    timeout: 10
+    memorySize: 256
+    events:
+      - http:
+          path: stats
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+    tags:
+      Function: stats
       Application: knowledge-map
 
 resources:

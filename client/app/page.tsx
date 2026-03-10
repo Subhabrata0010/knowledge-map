@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { SearchBar } from '@/components/search';
 import { Loading, ErrorMessage } from '@/components/ui';
 import { useGraph } from '@/hooks';
+import Link from 'next/dist/client/link';
 
 export default function Home() {
   const router = useRouter();
@@ -32,13 +33,13 @@ export default function Home() {
       {/* Floating Nav */}
       <nav className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
         <div className="minimal-card rounded-full px-6 py-3 flex items-center gap-6">
-          <a href="/" className="text-sm text-gray-400 hover:text-white transition-colors">
+          <Link href="/" className="text-sm text-gray-400 hover:text-white transition-colors">
             Home
-          </a>
+          </Link>
           <div className="w-1 h-1 bg-gray-600 rounded-full" />
-          <a href="https://github.com" target="_blank" rel="noopener" className="text-sm text-gray-400 hover:text-white transition-colors">
+          <Link href="https://github.com" target="_blank" rel="noopener" className="text-sm text-gray-400 hover:text-white transition-colors">
             GitHub
-          </a>
+          </Link>
         </div>
       </nav>
 

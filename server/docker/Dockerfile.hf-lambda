@@ -1,0 +1,25 @@
+# Lambda container with HuggingFace model (TinyLlama 1.1B - fits in Lambda!)
+# Cost: ~$0.0009 per request vs $0.70/hr for SageMaker
+
+FROM public.ecr.aws/lambda/python:3.11
+
+# Install dependencies
+RUN pip install --no-cache-dir \
+    torch==2.1.0 --index-url https://download.pytorch.org/whl/cpu \
+    transformers==4.37.0 \
+    accelerate==0.25.0 \
+    sentencepiece==0.1.99
+
+# Download model (TinyLlama 1.1B - small enough for Lambda)
+RUN python -c "from transformers import AutoTokenizer, AutoModelForCausalLM; \
+    model_name = 'TinyLlama/TinyLlama-1.1B-Chat-v1.0'; \
+    tokenizer = AutoTokenizer.from_pretrained(model_name); \
+    model = AutoModelForCausalLM.from_pretrained(model_name); \
+    tokenizer.save_pretrained('/opt/ml/model'); \
+    model.save_pretrained('/opt/ml/model')"
+
+# Copy inference code
+COPY hf_lambda_handler.py ${LAMBDA_TASK_ROOT}/
+
+# Set handler
+CMD ["hf_lambda_handler.handler"]

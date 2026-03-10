@@ -31,6 +31,23 @@ export const config = {
     minEntityFrequency: 1, // Allow single occurrences
     maxEntities: parseInt(process.env.MAX_ENTITIES || '40', 10),
     minRelationshipWeight: 0.3,
+    useHF: process.env.USE_HF_MODEL === 'true',
+  },
+
+  huggingface: {
+    endpointUrl: process.env.HF_ENDPOINT_URL || '',
+    modelName: process.env.HF_MODEL_NAME || 'meta-llama/Llama-3.2-3B-Instruct',
+    localMode: process.env.HF_LOCAL_MODEL === 'true',
+    modelPath: process.env.HF_MODEL_PATH || '/opt/ml/model',
+    maxTokens: 2048,
+  },
+
+  preScraping: {
+    enabled: process.env.ENABLE_PRE_SCRAPING === 'true',
+    topics: (process.env.PRE_SCRAPE_TOPICS || '').split(',').map(t => t.trim()).filter(Boolean),
+    intervalHours: parseFloat(process.env.PRE_SCRAPE_INTERVAL_HOURS || '24'),
+    maxTopics: parseInt(process.env.PRE_SCRAPE_MAX_TOPICS || '20', 10),
+    pagesPerTopic: parseInt(process.env.PRE_SCRAPE_PAGES_PER_TOPIC || '3', 10),
   },
   
   cache: {
@@ -45,7 +62,7 @@ export const config = {
   
   pipeline: {
     minSuccessfulScrapes: 3,
-    timeout: 25000, // 25 seconds (leave 5s buffer for Lambda timeout)
+    timeout: 150000, // 150 seconds (leave buffer for Lambda timeout of 180s)
   },
 };
 
