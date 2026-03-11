@@ -19,7 +19,7 @@ export const config = {
   scraping: {
     maxSearchResults: parseInt(process.env.MAX_SEARCH_RESULTS || '15', 10),
     maxConcurrentScrapes: parseInt(process.env.MAX_CONCURRENT_SCRAPES || '10', 10),
-    requestTimeout: parseInt(process.env.REQUEST_TIMEOUT || '5000', 10), // 5s - fail fast
+    requestTimeout: parseInt(process.env.REQUEST_TIMEOUT || '10000', 10), // 10s - more lenient timeout
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     retryAttempts: 1, // Single retry only
     retryDelay: 500,
@@ -61,7 +61,7 @@ export const config = {
   },
   
   pipeline: {
-    minSuccessfulScrapes: 3,
+    minSuccessfulScrapes: 2, // Reduced to handle cases with limited available content
     timeout: 150000, // 150 seconds (leave buffer for Lambda timeout of 180s)
   },
 };
