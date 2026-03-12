@@ -31,6 +31,7 @@ export class GraphTransformer {
         description: node.description,
         importance: node.importance,
         frequency: node.frequency,
+        metadata: node.metadata, // Pass through metadata including sources
       },
       style: {
         backgroundColor: this.getNodeColor(node.type),

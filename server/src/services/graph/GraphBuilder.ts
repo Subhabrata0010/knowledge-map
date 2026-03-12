@@ -55,12 +55,13 @@ export class GraphBuilder {
       id: Normalizer.generateId(entity.name),
       name: entity.name,
       type: entity.type,
-      description: entity.contexts[0] || undefined,
+      description: entity.contexts.join(' ') || undefined, // Join all contexts
       frequency: entity.frequency,
       importance: 0, // Will be calculated
       metadata: {
         sources: Array.from(entity.sources),
         cooccurrenceCount: entity.cooccurrences.size,
+        contexts: entity.contexts, // Include all contexts separately
       },
     }));
   }

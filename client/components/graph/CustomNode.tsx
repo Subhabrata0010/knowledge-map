@@ -14,6 +14,11 @@ export interface CustomNodeProps {
     description?: string;
     importance?: number;
     frequency?: number;
+    metadata?: {
+      sources?: string[];
+      contexts?: string[];
+      [key: string]: any;
+    };
   };
   selected?: boolean;
 }
@@ -62,8 +67,30 @@ export function CustomNode({ data, selected }: CustomNodeProps) {
 
           {/* Description - only when expanded */}
           {isExpanded && data.description && (
-            <div className="text-sm text-gray-400 mt-3 leading-relaxed">
+            <div className="text-sm text-gray-300 mt-3 leading-relaxed max-h-48 overflow-y-auto">
               {data.description}
+            </div>
+          )}
+
+          {/* Source Links - only when expanded */}
+          {isExpanded && data.metadata?.sources && data.metadata.sources.length > 0 && (
+            <div className="mt-4">
+              <div className="text-xs font-medium text-gray-500 mb-2 uppercase">Sources</div>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {data.metadata.sources.slice(0, 5).map((source: string, idx: number) => (
+                  <a
+                    key={idx}
+                    href={source}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="block text-xs text-blue-400 hover:text-blue-300 truncate"
+                    title={source}
+                  >
+                    {new URL(source).hostname}
+                  </a>
+                ))}
+              </div>
             </div>
           )}
 

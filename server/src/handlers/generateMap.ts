@@ -6,6 +6,9 @@
  * - Input validation and sanitization (SQL injection, XSS prevention)
  * - Rate limiting (100 requests per 15 minutes)
  * - Request logging with IP tracking
+ * 
+ * NOTE: This runs independently and concurrently with pre-scraping jobs.
+ * Each Lambda invocation has isolated service instances and DB connections.
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';

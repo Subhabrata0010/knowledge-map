@@ -51,7 +51,27 @@ export function NodeDetailsPanel({ node, onClose }: NodeDetailsPanelProps) {
           {node.description && (
             <div>
               <p className="text-xs font-medium text-gray-500 mb-2 uppercase">Description</p>
-              <p className="text-sm text-gray-400 leading-relaxed">{node.description}</p>
+              <p className="text-sm text-gray-300 leading-relaxed max-h-48 overflow-y-auto">{node.description}</p>
+            </div>
+          )}
+
+          {node.metadata?.sources && Array.isArray(node.metadata.sources) && node.metadata.sources.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2 uppercase">Sources</p>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {node.metadata.sources.slice(0, 5).map((source: string, idx: number) => (
+                  <a
+                    key={idx}
+                    href={source}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-xs text-blue-400 hover:text-blue-300 truncate"
+                    title={source}
+                  >
+                    {new URL(source).hostname}
+                  </a>
+                ))}
+              </div>
             </div>
           )}
 
